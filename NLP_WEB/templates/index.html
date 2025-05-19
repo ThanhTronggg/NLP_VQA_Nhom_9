@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATEAM IUH - Hệ thống Hỏi Đáp Thông Minh</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" rel="stylesheet">
+    <style>
+        .chat-container {
+            height: calc(100vh - 180px);
+        }
+        .message {
+            transition: all 0.3s ease;
+        }
+        .message:hover {
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+        .user-message {
+            background-color: #f7f7f8;
+        }
+        .assistant-message {
+            background-color: white;
+        }
+        .loading {
+            display: none;
+        }
+        .loading.active {
+            display: block;
+        }
+        .file-info {
+            background-color: #f0f7ff;
+            border: 1px solid #cce5ff;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 0.875rem;
+            color: #0066cc;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .upload-btn {
+            transition: all 0.2s ease;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            background-color: #f3f4f6;
+        }
+        .upload-btn:hover {
+            transform: scale(1.1);
+            background-color: #e5e7eb;
+        }
+        .upload-btn.has-file {
+            background-color: #dbeafe;
+            color: #2563eb;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="flex h-screen">
+        <!-- Sidebar -->
+        <div class="w-64 bg-gray-900 text-white p-4 flex flex-col">
+            <h1 class="text-xl font-bold mb-4">ATEAM IUH</h1>
+            <div class="mb-4">
+                <label class="block text-sm font-medium mb-2">Chọn Model:</label>
+                <div class="space-y-2">
+                    <button onclick="switchModel('gemini')" 
+                            id="gemini-btn"
+                            class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">
+                        Gemini API
+                    </button>
+                    <button onclick="switchModel('fine-tuned')"
+                            id="fine-tuned-btn" 
+                            class="w-full bg-gray-700 text-white py-2 px-4 rounded-lg hover:bg-gray-600 transition-colors">
+                        Fine-tuned Model
+                    </button>
+                </div>
+            </div>
+            <button onclick="clearChat()" class="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded-lg mb-4 transition-colors">
+                Cuộc hội thoại mới
+            </button>
+            <div class="flex-grow overflow-y-auto">
+                <!-- Chat history links could go here -->
+            </div>
+            <div class="text-sm text-gray-400 mt-4">
+                <p>Admin: Phúc, Trọng, Khánh</p>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1 flex flex-col">
+            <!-- Chat Messages -->
+            <div class="flex-1 overflow-y-auto p-4 chat-container" id="chat-container">
+                {% for message in chat_history %}
+                <div class="message {{ 'user-message' if message.role == 'user' else 'assistant-message' }} p-4 mb-4 rounded-lg animate__animated animate__fadeIn">
+                    <div class="flex items-start">
+                        <div class="w-8 h-8 rounded-full flex items-center justify-center {{ 'bg-blue-500' if message.role == 'user' else 'bg-green-500' }} text-white font-bold mr-3">
+                            {{ 'B' if message.role == 'user' else 'AI' }}
+                        </div>
+                        <div class="flex-1">
+                            {% if message.filename %}
+                            <div class="file-info mb-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                </svg>
+                                {{ message.filename }}
+                            </div>
+                            {% endif %}
+                            <p class="text-gray-800 whitespace-pre-wrap">{{ message.content }}</p>
+                            <span class="text-xs text-gray-500 mt-2 block">{{ message.timestamp }}</span>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Input Form -->
+            <div class="border-t p-4 bg-white">
+                <form id="upload-form" class="space-y-4">
+                    <div class="flex items-end space-x-4">
+                        <input type="file" 
+                               id="image" 
+                               name="image" 
+                               accept="image/*"
+                               class="hidden">
+                        <label for="image" class="upload-btn cursor-pointer text-gray-500" id="upload-btn">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                        </label>
+                        <div class="flex-grow relative">
+                            <textarea id="question" 
+                                     name="question" 
+                                     rows="1" 
+                                     class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 py-3 resize-none"
+                                     placeholder="Nhập câu hỏi của bạn..."
+                                     required></textarea>
+                        </div>
+                        <button type="submit" 
+                                class="bg-blue-600 text-white py-2 px-6 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-300">
+                            Gửi
+                        </button>
+                    </div>
+                    <div id="file-info" class="text-xs text-blue-600 mt-1 ml-12 hidden"></div>
+                </form>
+                
+                <div class="loading mt-4 text-center">
+                    <div class="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent mx-auto"></div>
+                    <p class="mt-2 text-gray-600">Đang xử lý câu hỏi của bạn...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Auto-resize textarea
+        const textarea = document.getElementById('question');
+        textarea.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        });
+
+        // Scroll to bottom of chat
+        function scrollToBottom() {
+            const container = document.getElementById('chat-container');
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // Clear chat
+        function clearChat() {
+            fetch('/clear_chat', {
+                method: 'POST',
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Clear local chat container
+                    document.getElementById('chat-container').innerHTML = '';
+                    
+                    // Reset form
+                    document.getElementById('upload-form').reset();
+                    document.getElementById('file-info').classList.add('hidden');
+                    document.getElementById('upload-btn').classList.remove('has-file');
+                    
+                    // Reload the page to ensure clean state
+                    window.location.href = '/';
+                } else if (data.status === 'error') {
+                    alert('Có lỗi xảy ra: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Đã có lỗi xảy ra khi xóa cuộc trò chuyện.');
+            });
+        }
+
+        // File input handling
+        const fileInput = document.getElementById('image');
+        const fileInfo = document.getElementById('file-info');
+        const uploadBtn = document.getElementById('upload-btn');
+
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                fileInfo.textContent = `Đã chọn: ${file.name}`;
+                fileInfo.classList.remove('hidden');
+                uploadBtn.classList.add('has-file');
+            } else {
+                fileInfo.classList.add('hidden');
+                uploadBtn.classList.remove('has-file');
+            }
+        });
+
+        // Handle form submission
+        document.getElementById('upload-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const loading = document.querySelector('.loading');
+            const formData = new FormData(this);
+            
+            loading.classList.add('active');
+            
+            try {
+                const response = await fetch('/process', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    // Clear form
+                    this.reset();
+                    fileInfo.classList.add('hidden');
+                    uploadBtn.classList.remove('has-file');
+                    textarea.style.height = 'auto';
+                    
+                    // Update chat container
+                    const chatContainer = document.getElementById('chat-container');
+                    
+                    // Add user message
+                    const lastMessage = data.chat_history[data.chat_history.length - 2];
+                    const userMessage = createMessageElement(lastMessage);
+                    chatContainer.appendChild(userMessage);
+                    
+                    // Add assistant message
+                    const assistantMessage = createMessageElement(data.chat_history[data.chat_history.length - 1]);
+                    chatContainer.appendChild(assistantMessage);
+                    
+                    // Scroll to bottom
+                    scrollToBottom();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Đã có lỗi xảy ra khi xử lý yêu cầu của bạn.');
+            } finally {
+                loading.classList.remove('active');
+            }
+        });
+
+        function createMessageElement(message) {
+            const div = document.createElement('div');
+            div.className = `message ${message.role === 'user' ? 'user-message' : 'assistant-message'} p-4 mb-4 rounded-lg animate__animated animate__fadeIn`;
+            
+            const html = `
+                <div class="flex items-start">
+                    <div class="w-8 h-8 rounded-full flex items-center justify-center ${message.role === 'user' ? 'bg-blue-500' : 'bg-green-500'} text-white font-bold mr-3">
+                        ${message.role === 'user' ? 'B' : 'AI'}
+                    </div>
+                    <div class="flex-1">
+                        ${message.filename ? `
+                        <div class="file-info mb-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                            ${message.filename}
+                        </div>` : ''}
+                        <p class="text-gray-800 whitespace-pre-wrap">${message.content}</p>
+                        <span class="text-xs text-gray-500 mt-2 block">${message.timestamp}</span>
+                    </div>
+                </div>
+            `;
+            
+            div.innerHTML = html;
+            return div;
+        }
+
+        // Add this to handle page refresh
+        window.addEventListener('load', function() {
+            // Scroll to bottom on page load
+            scrollToBottom();
+            
+            // Clear any lingering form data
+            document.getElementById('upload-form').reset();
+            document.getElementById('file-info').classList.add('hidden');
+            document.getElementById('upload-btn').classList.remove('has-file');
+        });
+
+        // Add this function for model switching
+        function switchModel(modelName) {
+            fetch('/switch_model', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ model: modelName })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Update button styles
+                    document.getElementById('gemini-btn').className = 
+                        modelName === 'gemini' 
+                            ? 'w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors'
+                            : 'w-full bg-gray-700 text-white py-2 px-4 rounded-lg hover:bg-gray-600 transition-colors';
+                    
+                    document.getElementById('fine-tuned-btn').className = 
+                        modelName === 'fine-tuned'
+                            ? 'w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors'
+                            : 'w-full bg-gray-700 text-white py-2 px-4 rounded-lg hover:bg-gray-600 transition-colors';
+                } else {
+                    alert('Có lỗi khi chuyển đổi model: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Đã có lỗi xảy ra khi chuyển đổi model.');
+            });
+        }
+    </script>
+</body>
+</html> 
